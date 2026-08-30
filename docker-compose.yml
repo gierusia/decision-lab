@@ -15,11 +15,10 @@ services:
       interval: 5s
       timeout: 5s
       retries: 5
-
   backend:
     build:
       context: ./backend
-      network: host          
+      network: host
     restart: unless-stopped
     env_file:
       - .env
@@ -32,21 +31,5 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
-
-  frontend:
-    build:
-      context: ./frontend
-      network: host          
-    restart: unless-stopped
-    environment:
-      NEXT_PUBLIC_API_URL: http://localhost:8000
-    volumes:
-      - ./frontend:/app
-      - /app/node_modules
-    ports:
-      - "3000:3000"
-    depends_on:
-      - backend
-
 volumes:
   pgdata:

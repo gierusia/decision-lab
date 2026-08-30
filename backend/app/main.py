@@ -3,8 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.auth.router import router as auth_router
 from app.core.database import Base, engine
-
-Base.metadata.create_all(bind=engine)
+from app.core.database import get_db  # или что там реально нужно
 
 app = FastAPI(title="Decision Lab")
 
