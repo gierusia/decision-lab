@@ -21,7 +21,13 @@ router = APIRouter()
 def register(payload: RegisterRequest, db: Session = Depends(get_db)):
     if service.get_user_by_email(db, payload.email) is not None:
         raise HTTPException(status_code=400, detail="Email already registered")
-    return service.create_user(db, payload.email, payload.password, payload.full_name)
+    try:
+        # Проверка выше закрывает обычный случай без лишнего похода в БД
+        # на неудачу; try/except здесь — на случай гонки двух одновременных
+        # регистраций с одним email (см. комментарий в service.create_user).
+        return service.create_user(db, payload.email, payload.password, payload.full_name)
+    except ValueError as error:
+        raise HTTPException(status_code=400, detail=str(error)) from error
 
 
 @router.post("/login", response_model=TokenResponse)

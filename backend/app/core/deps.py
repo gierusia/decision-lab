@@ -22,7 +22,20 @@ def get_current_user(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Could not validate credentials",
         )
-    user = db.query(User).filter(User.id == user_id).first()
+
+    try:
+        # user_id — строка из тела JWT. Токен подписан нами же, так что
+        # обычно там валидный UUID, но если кто-то вручную подсунет битую
+        # строку (например, при тестировании curl'ом), GUID-колонка
+        # попытается сделать uuid.UUID(value) и упадёт с ValueError —
+        # ловим здесь, а не даём этому долететь до 500.
+        user = db.query(User).filter(User.id == user_id).first()
+    except ValueError:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Could not validate credentials",
+        ) from None
+
     if user is None:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found")
     return user
