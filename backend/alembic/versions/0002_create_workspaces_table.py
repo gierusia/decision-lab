@@ -14,7 +14,9 @@ down_revision = "0001"
 branch_labels = None
 depends_on = None
 
-workspace_role = postgresql.ENUM("owner", "member", "viewer", name="workspacerole")
+workspace_role = postgresql.ENUM(
+    "owner", "member", "viewer", name="workspacerole", create_type=False
+)
 
 
 def upgrade() -> None:
