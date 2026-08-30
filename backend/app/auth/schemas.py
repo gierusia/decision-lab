@@ -47,7 +47,7 @@ class TokenResponse(BaseModel):
 
 
 class ProfileUpdateRequest(BaseModel):
-    """И имя, и смена пароля идут через один эндпоинт оба поля опциональны,
+    """И имя, и смена пароля идут через один эндпоинт — оба поля опциональны,
     можно менять что-то одно или сразу оба."""
 
     full_name: str | None = None
@@ -61,7 +61,7 @@ class ProfileUpdateRequest(BaseModel):
 
     @model_validator(mode="after")
     def _current_password_required_for_change(self) -> "ProfileUpdateRequest":
-        # Проверяем именно на уровне схемы, а не в роутере это условие
+        # Проверяем именно на уровне схемы, а не в роутере — это условие
         # формы запроса, а не бизнес-логика вокруг хранения пароля.
         if self.new_password and not self.current_password:
             raise ValueError("current_password is required to set a new password")
