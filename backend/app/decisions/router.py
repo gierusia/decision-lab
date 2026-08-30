@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.auth.models import User
@@ -15,7 +15,6 @@ router = APIRouter()
 
 
 def _to_decision_out(decision: Decision) -> DecisionOut:
-
     return DecisionOut(
         id=decision.id,
         workspace_id=decision.workspace_id,
@@ -65,9 +64,12 @@ def update_decision(
     workspace: Workspace = Depends(require_role(WorkspaceRole.MEMBER)),
     db: Session = Depends(get_db),
 ):
-    updated = service.update_decision(
-        db, decision, payload.title, payload.description, payload.status, payload.tags
-    )
+    try:
+        updated = service.update_decision(
+            db, decision, payload.title, payload.description, payload.status, payload.tags
+        )
+    except ValueError as error:
+        raise HTTPException(status_code=400, detail=str(error)) from error
     return _to_decision_out(updated)
 
 

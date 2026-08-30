@@ -5,6 +5,7 @@ from sqlalchemy.orm import Session
 
 from app.auth.models import User
 from app.decisions.models import Decision, DecisionStatus, DecisionTag
+from app.decisions.transitions import is_transition_allowed
 from app.workspaces.models import Workspace
 
 
@@ -67,8 +68,14 @@ def update_decision(
         decision.title = title
     if description is not None:
         decision.description = description
+
     if status is not None:
+        if not is_transition_allowed(decision.status, status):
+            raise ValueError(
+                f"Cannot move decision from '{decision.status.value}' to '{status.value}'"
+            )
         decision.status = status
+
     if tags is not None:
         decision.tags = [DecisionTag(tag=t) for t in tags]
 
