@@ -1,14 +1,20 @@
 import uuid
 
+from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
 from app.auth.models import User
-from app.decisions.models import Decision, DecisionStatus
+from app.decisions.models import Decision, DecisionStatus, DecisionTag
 from app.workspaces.models import Workspace
 
 
 def create_decision(
-    db: Session, workspace: Workspace, creator: User, title: str, description: str | None
+    db: Session,
+    workspace: Workspace,
+    creator: User,
+    title: str,
+    description: str | None,
+    tags: list[str],
 ) -> Decision:
     decision = Decision(
         workspace_id=workspace.id,
@@ -16,6 +22,7 @@ def create_decision(
         description=description,
         status=DecisionStatus.DRAFT,
         created_by=creator.id,
+        tags=[DecisionTag(tag=t) for t in tags],
     )
     db.add(decision)
     db.commit()
@@ -31,13 +38,21 @@ def get_decision(db: Session, workspace: Workspace, decision_id: uuid.UUID) -> D
     )
 
 
-def list_decisions(db: Session, workspace: Workspace) -> list[Decision]:
-    return (
-        db.query(Decision)
-        .filter(Decision.workspace_id == workspace.id)
-        .order_by(Decision.created_at.desc())
-        .all()
-    )
+def list_decisions(
+    db: Session, workspace: Workspace, q: str | None = None, tag: str | None = None
+) -> list[Decision]:
+    query = db.query(Decision).filter(Decision.workspace_id == workspace.id)
+
+    if q:
+        pattern = f"%{q}%"
+        query = query.filter(
+            or_(Decision.title.ilike(pattern), Decision.description.ilike(pattern))
+        )
+
+    if tag:
+        query = query.join(DecisionTag).filter(DecisionTag.tag == tag)
+
+    return query.order_by(Decision.created_at.desc()).all()
 
 
 def update_decision(
@@ -46,6 +61,7 @@ def update_decision(
     title: str | None,
     description: str | None,
     status: DecisionStatus | None,
+    tags: list[str] | None,
 ) -> Decision:
     if title is not None:
         decision.title = title
@@ -53,6 +69,8 @@ def update_decision(
         decision.description = description
     if status is not None:
         decision.status = status
+    if tags is not None:
+        decision.tags = [DecisionTag(tag=t) for t in tags]
 
     db.commit()
     db.refresh(decision)

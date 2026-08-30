@@ -14,6 +14,21 @@ from app.workspaces.models import Workspace, WorkspaceRole
 router = APIRouter()
 
 
+def _to_decision_out(decision: Decision) -> DecisionOut:
+
+    return DecisionOut(
+        id=decision.id,
+        workspace_id=decision.workspace_id,
+        title=decision.title,
+        description=decision.description,
+        status=decision.status,
+        tags=[t.tag for t in decision.tags],
+        created_by=decision.created_by,
+        created_at=decision.created_at,
+        updated_at=decision.updated_at,
+    )
+
+
 @router.post("/{workspace_id}/decisions", response_model=DecisionOut, status_code=201)
 def create_decision(
     payload: DecisionCreateRequest,
@@ -21,22 +36,26 @@ def create_decision(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    return service.create_decision(
-        db, workspace, current_user, payload.title, payload.description
+    decision = service.create_decision(
+        db, workspace, current_user, payload.title, payload.description, payload.tags
     )
+    return _to_decision_out(decision)
 
 
 @router.get("/{workspace_id}/decisions", response_model=list[DecisionOut])
 def list_decisions(
+    q: str | None = None,
+    tag: str | None = None,
     workspace: Workspace = Depends(require_role(WorkspaceRole.VIEWER)),
     db: Session = Depends(get_db),
 ):
-    return service.list_decisions(db, workspace)
+    decisions = service.list_decisions(db, workspace, q=q, tag=tag)
+    return [_to_decision_out(d) for d in decisions]
 
 
 @router.get("/{workspace_id}/decisions/{decision_id}", response_model=DecisionOut)
 def get_decision(decision: Decision = Depends(get_decision_or_404)):
-    return decision
+    return _to_decision_out(decision)
 
 
 @router.patch("/{workspace_id}/decisions/{decision_id}", response_model=DecisionOut)
@@ -46,9 +65,10 @@ def update_decision(
     workspace: Workspace = Depends(require_role(WorkspaceRole.MEMBER)),
     db: Session = Depends(get_db),
 ):
-    return service.update_decision(
-        db, decision, payload.title, payload.description, payload.status
+    updated = service.update_decision(
+        db, decision, payload.title, payload.description, payload.status, payload.tags
     )
+    return _to_decision_out(updated)
 
 
 @router.delete("/{workspace_id}/decisions/{decision_id}", status_code=204)

@@ -2,9 +2,9 @@ import enum
 import uuid
 from datetime import datetime, timezone
 
-from sqlalchemy import DateTime, ForeignKey, String, Text
+from sqlalchemy import DateTime, ForeignKey, String, Text, UniqueConstraint
 from sqlalchemy import Enum as SAEnum
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.database import Base
 from app.core.types import GUID
@@ -41,3 +41,19 @@ class Decision(Base):
         default=lambda: datetime.now(timezone.utc),
         onupdate=lambda: datetime.now(timezone.utc),
     )
+
+    tags: Mapped[list["DecisionTag"]] = relationship(
+        "DecisionTag", cascade="all, delete-orphan", lazy="selectin"
+    )
+
+
+class DecisionTag(Base):
+    __tablename__ = "decision_tags"
+
+    id: Mapped[uuid.UUID] = mapped_column(GUID(), primary_key=True, default=uuid.uuid4)
+    decision_id: Mapped[uuid.UUID] = mapped_column(
+        GUID(), ForeignKey("decisions.id"), nullable=False
+    )
+    tag: Mapped[str] = mapped_column(String, nullable=False)
+
+    __table_args__ = (UniqueConstraint("decision_id", "tag", name="uq_decision_tag"),)
