@@ -11,6 +11,7 @@ from app.workspaces.schemas import WorkspaceCreateRequest, WorkspaceOut, Workspa
 
 router = APIRouter()
 
+
 @router.post("", response_model=WorkspaceOut, status_code=201)
 def create_workspace(
     payload: WorkspaceCreateRequest,

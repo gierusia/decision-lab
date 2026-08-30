@@ -1,25 +1,20 @@
-"""Каркас проверки прав в workspace.
+"""Иерархия прав в workspace.
 
-Сейчас реализована только одна проверка — "владелец ли это workspace",
-потому что участников кроме Owner пока просто неоткуда взять (add-member
-эндпоинта ещё нет). Как только появится приглашение участников:
-
-- добавится has_role(workspace, user, min_role) — сравнение по иерархии
-  Owner > Member > Viewer вместо точного совпадения ролей
-- require_role() ниже перестанет быть заглушкой и будет использоваться
-  как FastAPI-зависимость на эндпоинтах Decisions/Experiments
+Owner умеет всё, что умеет Member; Member умеет всё, что умеет Viewer.
+Поэтому проверка прав — это не "роль совпадает", а "ранг роли не ниже
+требуемого". FastAPI-обвязка вокруг этой проверки живёт в deps.py 
+здесь только чистая логика, без Depends и HTTPException, чтобы её можно
+было протестировать без поднятия приложения.
 """
 
-from app.auth.models import User
-from app.workspaces.models import Workspace
+from app.workspaces.models import WorkspaceRole
+
+_ROLE_RANK: dict[WorkspaceRole, int] = {
+    WorkspaceRole.VIEWER: 1,
+    WorkspaceRole.MEMBER: 2,
+    WorkspaceRole.OWNER: 3,
+}
 
 
-def is_owner(workspace: Workspace, user: User) -> bool:
-    return workspace.owner_id == user.id
-
-
-def require_role(min_role: str):
-    """Заглушка на будущее — превратится в зависимость вида
-    Depends(require_role("member")), когда появятся Member/Viewer.
-    Пока не вызывается нигде в коде."""
-    raise NotImplementedError("Роли Member/Viewer появятся во второй части Этапа 2")
+def has_role(actual_role: WorkspaceRole, min_role: WorkspaceRole) -> bool:
+    return _ROLE_RANK[actual_role] >= _ROLE_RANK[min_role]
