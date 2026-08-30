@@ -5,7 +5,8 @@ from sqlalchemy import engine_from_config, pool
 
 from app.core.database import Base
 from app.core.config import settings
-from app.auth.models import User  # noqa: F401 — импорт нужен, чтобы модель зарегистрировалась в Base.metadata
+from app.auth.models import User  # noqa: F401 — регистрирует таблицу в Base.metadata
+from app.workspaces.models import Workspace, WorkspaceMember  # noqa: F401 — то же самое
 
 config = context.config
 
