@@ -40,7 +40,11 @@ def get_decision(db: Session, workspace: Workspace, decision_id: uuid.UUID) -> D
 
 
 def list_decisions(
-    db: Session, workspace: Workspace, q: str | None = None, tag: str | None = None
+    db: Session,
+    workspace: Workspace,
+    q: str | None = None,
+    tag: str | None = None,
+    status: DecisionStatus | None = None,
 ) -> list[Decision]:
     query = db.query(Decision).filter(Decision.workspace_id == workspace.id)
 
@@ -52,6 +56,9 @@ def list_decisions(
 
     if tag:
         query = query.join(DecisionTag).filter(DecisionTag.tag == tag)
+
+    if status is not None:
+        query = query.filter(Decision.status == status)
 
     return query.order_by(Decision.created_at.desc()).all()
 

@@ -6,7 +6,7 @@ from app.core.database import get_db
 from app.core.deps import get_current_user
 from app.decisions import service
 from app.decisions.deps import get_decision_or_404
-from app.decisions.models import Decision
+from app.decisions.models import Decision, DecisionStatus
 from app.decisions.schemas import DecisionCreateRequest, DecisionOut, DecisionUpdateRequest
 from app.workspaces.deps import require_role
 from app.workspaces.models import Workspace, WorkspaceRole
@@ -45,10 +45,11 @@ def create_decision(
 def list_decisions(
     q: str | None = None,
     tag: str | None = None,
+    status: DecisionStatus | None = None,
     workspace: Workspace = Depends(require_role(WorkspaceRole.VIEWER)),
     db: Session = Depends(get_db),
 ):
-    decisions = service.list_decisions(db, workspace, q=q, tag=tag)
+    decisions = service.list_decisions(db, workspace, q=q, tag=tag, status=status)
     return [_to_decision_out(d) for d in decisions]
 
 
