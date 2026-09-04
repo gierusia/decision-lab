@@ -45,6 +45,12 @@ class Decision(Base):
     tags: Mapped[list["DecisionTag"]] = relationship(
         "DecisionTag", cascade="all, delete-orphan", lazy="selectin"
     )
+    experiments: Mapped[list["Experiment"]] = relationship(
+        "Experiment",
+        back_populates="decision",
+        cascade="all, delete-orphan",
+        lazy="selectin",
+    )
 
 
 class DecisionTag(Base):

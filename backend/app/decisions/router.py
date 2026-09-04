@@ -8,6 +8,7 @@ from app.decisions import service
 from app.decisions.deps import get_decision_or_404
 from app.decisions.models import Decision, DecisionStatus
 from app.decisions.schemas import DecisionCreateRequest, DecisionOut, DecisionUpdateRequest
+from app.workspaces import service as workspace_service
 from app.workspaces.deps import require_role
 from app.workspaces.models import Workspace, WorkspaceRole
 
@@ -63,11 +64,20 @@ def update_decision(
     payload: DecisionUpdateRequest,
     decision: Decision = Depends(get_decision_or_404),
     workspace: Workspace = Depends(require_role(WorkspaceRole.MEMBER)),
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
+    membership = workspace_service.get_membership(db, workspace, current_user)
     try:
         updated = service.update_decision(
-            db, decision, payload.title, payload.description, payload.status, payload.tags
+            db,
+            decision,
+            payload.title,
+            payload.description,
+            payload.status,
+            payload.tags,
+            actor_is_owner=membership is not None
+            and membership.role == WorkspaceRole.OWNER,
         )
     except ValueError as error:
         raise HTTPException(status_code=400, detail=str(error)) from error

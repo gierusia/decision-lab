@@ -70,6 +70,8 @@ def update_decision(
     description: str | None,
     status: DecisionStatus | None,
     tags: list[str] | None,
+    *,
+    actor_is_owner: bool = False,
 ) -> Decision:
     if title is not None:
         decision.title = title
@@ -81,6 +83,13 @@ def update_decision(
             raise ValueError(
                 f"Cannot move decision from '{decision.status.value}' to '{status.value}'"
             )
+        if status in {DecisionStatus.COMPLETED, DecisionStatus.CANCELLED} and not actor_is_owner:
+            from app.experiments.service import list_open_experiments
+
+            if list_open_experiments(db, decision):
+                raise ValueError(
+                    "Cannot close a decision while experiments are still planned or running"
+                )
         decision.status = status
 
     if tags is not None:
