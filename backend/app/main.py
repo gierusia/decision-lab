@@ -2,6 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.auth.router import router as auth_router
+from app.dashboard.router import router as dashboard_router
 from app.decisions.router import router as decisions_router
 from app.experiments.router import router as experiments_router
 from app.workspaces.members_router import router as workspace_members_router
@@ -22,6 +23,7 @@ app.include_router(workspaces_router, prefix="/workspaces", tags=["workspaces"])
 app.include_router(workspace_members_router, prefix="/workspaces", tags=["workspace-members"])
 app.include_router(decisions_router, prefix="/workspaces", tags=["decisions"])
 app.include_router(experiments_router, prefix="/workspaces", tags=["experiments"])
+app.include_router(dashboard_router, prefix="/workspaces", tags=["dashboard"])
 
 
 @app.get("/health")

@@ -23,7 +23,7 @@ def test_naive_datetimes_are_interpreted_as_utc():
     assert DashboardFilters(date_from=naive).date_from == NOW
 
 
-def test_filter_dates_are_normalized_and_bounds_are_inclusive():
+def test_filter_datetimes_are_normalized_to_utc():
     eastern = datetime(2026, 9, 4, 8, 0, tzinfo=timezone(timedelta(hours=-4)))
     filters = DashboardFilters(date_from=eastern, date_to=NOW)
 
@@ -45,6 +45,21 @@ def test_decision_at_stale_threshold_is_not_stale():
 
     assert is_stale(decision, 30, NOW) is False
     assert stale_after_at(decision, 30) == NOW
+
+
+def test_stale_threshold_days_must_be_at_least_one():
+    decision = _decision(DecisionStatus.ACTIVE, NOW)
+
+    with pytest.raises(ValueError, match="threshold_days"):
+        is_stale(decision, 0, NOW)
+
+
+def test_draft_and_needs_revision_can_be_stale():
+    draft = _decision(DecisionStatus.DRAFT, NOW - timedelta(days=30, seconds=1))
+    revision = _decision(DecisionStatus.NEEDS_REVISION, NOW - timedelta(days=30, seconds=1))
+
+    assert is_stale(draft, 30, NOW) is True
+    assert is_stale(revision, 30, NOW) is True
 
 
 def test_decision_older_than_stale_threshold_is_stale():
