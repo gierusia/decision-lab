@@ -37,3 +37,60 @@ export type Decision = {
   updated_at: string;
 };
 
+export type WorkspaceRole = "owner" | "member" | "viewer";
+
+export type Member = {
+  id: string;
+  user_id: string;
+  email: string;
+  full_name: string | null;
+  role: WorkspaceRole;
+  created_at: string;
+};
+
+export type DecisionReadiness =
+  | "closed"
+  | "blocked_by_open_experiments"
+  | "draft"
+  | "needs_revision"
+  | "ready_to_close";
+
+export type DecisionSummary = {
+  id: string;
+  title: string;
+  description: string | null;
+  status: DecisionStatus;
+  tags: string[];
+  author: { id: string; full_name: string | null };
+  created_by: string;
+  created_at: string;
+  updated_at: string;
+  is_stale: boolean;
+  stale_threshold_days: number;
+  stale_after_at: string | null;
+  age_seconds: number;
+  readiness: DecisionReadiness;
+};
+
+export type ExperimentStatus = "planned" | "running" | "completed";
+export type ExperimentVerdict = "success" | "partial" | "failed";
+export type MetricDirection = "higher_is_better" | "lower_is_better";
+
+export type Experiment = {
+  id: string;
+  decision_id: string;
+  created_by: string;
+  status: ExperimentStatus;
+  verdict: ExperimentVerdict | null;
+  metric_name: string;
+  metric_direction: MetricDirection;
+  target_value: string;
+  actual_value: string | null;
+  partial_tolerance_percent: string;
+  notes: string | null;
+  feature_flag_key: string | null;
+  is_frozen: boolean;
+};
+
+
+

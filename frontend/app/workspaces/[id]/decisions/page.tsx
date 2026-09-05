@@ -140,7 +140,9 @@ export default function DecisionsPage() {
       <ul style={{ listStyle: "none", padding: 0, display: "grid", gap: "0.5rem" }}>
         {decisions.map((decision) => (
           <li key={decision.id} style={{ border: "1px solid #ddd", padding: "0.8rem" }}>
-            <strong>{decision.title}</strong>
+            <Link href={`/workspaces/${workspaceId}/decisions/${decision.id}`}>
+              <strong>{decision.title}</strong>
+            </Link>
             <div>
               {decision.status}
               {decision.tags.length ? ` · ${decision.tags.join(", ")}` : ""}
