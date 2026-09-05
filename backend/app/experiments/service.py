@@ -233,7 +233,7 @@ def delete_experiment(
     actor: User,
     actor_role: WorkspaceRole,
 ) -> None:
-    if actor_role != WorkspaceRole.OWNER and experiment.created_by != actor.id:
-        raise ExperimentError("You can only delete your own experiments")
+    if actor_role != WorkspaceRole.OWNER:
+        raise ExperimentError("Only an owner can delete an experiment")
     db.delete(experiment)
     db.commit()

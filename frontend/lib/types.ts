@@ -3,6 +3,7 @@ export type User = {
   email: string;
   full_name: string | null;
   created_at: string;
+  is_admin?: boolean;
 };
 
 export type TokenResponse = {
@@ -91,6 +92,39 @@ export type Experiment = {
   feature_flag_key: string | null;
   is_frozen: boolean;
 };
+
+export type DashboardOut = {
+  filters: {
+    date_from: string | null;
+    date_to: string | null;
+    status: DecisionStatus | null;
+    author_id: string | null;
+    stale_only: boolean;
+  };
+  pagination: { limit: number; offset: number; total: number };
+  totals: {
+    decisions: number;
+    by_status: Record<DecisionStatus, number>;
+    stale: number;
+    experiments_open: number;
+    experiments_completed: number;
+    verdicts: { success: number; partial: number; failed: number };
+  };
+  decisions: Array<{
+    id: string;
+    title: string;
+    status: DecisionStatus;
+    tags: string[];
+    author: { id: string; full_name: string | null };
+    created_at: string;
+    updated_at: string;
+    is_stale: boolean;
+    readiness: DecisionReadiness;
+    experiment_counts: { planned: number; running: number; completed: number };
+    verdict_counts: { success: number; partial: number; failed: number };
+  }>;
+};
+
 
 
 

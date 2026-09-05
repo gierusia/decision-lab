@@ -1,6 +1,7 @@
 "use client";
 
 import { FormEvent, useEffect, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { api, ApiError, logout } from "../../lib/api";
 import type { User, Workspace } from "../../lib/types";
@@ -20,9 +21,7 @@ export default function WorkspacesPage() {
         setWorkspaces(items);
       })
       .catch((err) => {
-        if (err instanceof ApiError && err.status === 401) {
-          return;
-        }
+        if (err instanceof ApiError && err.status === 401) return;
         setError(err instanceof ApiError ? err.detail : "Не удалось загрузить данные");
       });
   }, [router]);
@@ -46,51 +45,48 @@ export default function WorkspacesPage() {
   }
 
   if (!workspaces) {
-    return <p style={{ padding: "2rem" }}>{error ?? "Загрузка…"}</p>;
+    return <p className="content">{error ?? "Загрузка…"}</p>;
   }
 
   return (
-    <main style={{ maxWidth: 640, margin: "4rem auto", padding: "0 1rem" }}>
-      <header style={{ display: "flex", justifyContent: "space-between", gap: "1rem" }}>
+    <div className="picker stack">
+      <div className="row" style={{ justifyContent: "space-between" }}>
         <div>
-          <h1>Workspaces</h1>
-          <p>{user?.full_name || user?.email}</p>
+          <div className="brand">DECISION LAB</div>
+          <h1 className="page-title">Workspaces</h1>
+          <p className="muted">{user?.full_name || user?.email}</p>
         </div>
-        <button type="button" onClick={() => logout()}>
-          Выйти
-        </button>
-      </header>
-
-      {workspaces.length === 0 && <p>Пока нет workspace — создайте первый.</p>}
-
-      <ul style={{ padding: 0, listStyle: "none", display: "grid", gap: "0.5rem" }}>
+        <div className="row">
+          {user?.is_admin && <Link href="/people">Люди</Link>}
+          <Link href="/profile">Профиль</Link>
+          <button type="button" className="ghost" onClick={() => logout()}>
+            Выйти
+          </button>
+        </div>
+      </div>
+      {workspaces.length === 0 && (
+        <p className="muted">
+          {user?.is_admin
+            ? "Создайте первый workspace."
+            : "Вас ещё не добавили ни в один проект. Когда владелец назначит комнату, она появится здесь."}
+        </p>
+      )}
+      <ul className="list">
         {workspaces.map((workspace) => (
           <li key={workspace.id}>
-            <button
-              type="button"
-              onClick={() => router.push(`/workspaces/${workspace.id}`)}
-              style={{ width: "100%", textAlign: "left", padding: "0.8rem" }}
-            >
+            <button type="button" className="ghost" style={{ width: "100%", textAlign: "left" }} onClick={() => router.push(`/workspaces/${workspace.id}`)}>
               {workspace.name}
             </button>
           </li>
         ))}
       </ul>
-
-      <form onSubmit={onCreate} style={{ display: "grid", gap: "0.5rem", marginTop: "1.5rem" }}>
-        <input
-          required
-          minLength={1}
-          placeholder="Название нового workspace"
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          style={{ padding: "0.6rem" }}
-        />
-        <button type="submit" disabled={pending}>
-          Создать
-        </button>
+      {user?.is_admin && (
+      <form onSubmit={onCreate} className="stack">
+        <input required minLength={1} placeholder="Название нового workspace" value={name} onChange={(e) => setName(e.target.value)} />
+        <button type="submit" disabled={pending}>Создать</button>
       </form>
-      {error && <p style={{ color: "crimson" }}>{error}</p>}
-    </main>
+      )}
+      {error && <p className="error">{error}</p>}
+    </div>
   );
 }

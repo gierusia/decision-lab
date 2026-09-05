@@ -3,8 +3,15 @@
 import { FormEvent, useEffect, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { api, ApiError, logout } from "../../../../lib/api";
-import type { Decision, DecisionStatus, Workspace } from "../../../../lib/types";
+import { api, ApiError } from "../../../../lib/api";
+import type {
+  Decision,
+  DecisionStatus,
+  Member,
+  User,
+  Workspace,
+  WorkspaceRole,
+} from "../../../../lib/types";
 
 const STATUSES: Array<DecisionStatus | ""> = [
   "",
@@ -20,6 +27,7 @@ export default function DecisionsPage() {
   const workspaceId = params.id;
   const [workspace, setWorkspace] = useState<Workspace | null>(null);
   const [decisions, setDecisions] = useState<Decision[] | null>(null);
+  const [role, setRole] = useState<WorkspaceRole | null>(null);
   const [q, setQ] = useState("");
   const [tag, setTag] = useState("");
   const [status, setStatus] = useState<DecisionStatus | "">("");
@@ -28,6 +36,7 @@ export default function DecisionsPage() {
   const [tagsText, setTagsText] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
+  const canEdit = role === "owner" || role === "member";
 
   function loadDecisions(nextQ = q, nextTag = tag, nextStatus = status) {
     const query = new URLSearchParams();
@@ -42,18 +51,18 @@ export default function DecisionsPage() {
     Promise.all([
       api<Workspace>(`/workspaces/${workspaceId}`),
       loadDecisions(),
+      api<User>("/auth/me"),
+      api<Member[]>(`/workspaces/${workspaceId}/members`),
     ])
-      .then(([item, items]) => {
+      .then(([item, items, me, members]) => {
         setWorkspace(item);
         setDecisions(items);
+        setRole(members.find((member) => member.user_id === me.id)?.role ?? null);
       })
       .catch((err) => {
-        if (err instanceof ApiError && err.status === 401) {
-          return;
-        }
+        if (err instanceof ApiError && err.status === 401) return;
         setError(err instanceof ApiError ? `${err.status}: ${err.detail}` : "Не удалось загрузить решения");
       });
-    // first load only
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [workspaceId]);
 
@@ -69,6 +78,7 @@ export default function DecisionsPage() {
 
   async function onCreate(event: FormEvent) {
     event.preventDefault();
+    if (!canEdit) return;
     setPending(true);
     setError(null);
     const tags = tagsText
@@ -96,88 +106,72 @@ export default function DecisionsPage() {
   }
 
   if (!workspace || !decisions) {
-    return <p style={{ padding: "2rem" }}>{error ?? "Загрузка…"}</p>;
+    return <p className="muted">{error ?? "Загрузка…"}</p>;
   }
 
   return (
-    <main style={{ maxWidth: 800, margin: "2rem auto", padding: "0 1rem" }}>
-      <p>
-        <Link href="/workspaces">Все workspace</Link>
-        {" · "}
-        <Link href={`/workspaces/${workspaceId}`}>{workspace.name}</Link>
-      </p>
-      <header style={{ display: "flex", justifyContent: "space-between" }}>
-        <h1>Решения</h1>
-        <button type="button" onClick={() => logout()}>
-          Выйти
-        </button>
-      </header>
+    <div className="stack">
+      <div>
+        <h1 className="page-title">Решения</h1>
+        <p className="muted">{decisions.length} в текущем фильтре</p>
+      </div>
 
-      <form onSubmit={onFilter} style={{ display: "grid", gap: "0.5rem", marginBottom: "1.5rem" }}>
-        <input
-          placeholder="поиск по названию и описанию"
-          value={q}
-          onChange={(e) => setQ(e.target.value)}
-          style={{ padding: "0.6rem" }}
-        />
-        <input
-          placeholder="тег"
-          value={tag}
-          onChange={(e) => setTag(e.target.value)}
-          style={{ padding: "0.6rem" }}
-        />
-        <select value={status} onChange={(e) => setStatus(e.target.value as DecisionStatus | "")} style={{ padding: "0.6rem" }}>
-          {STATUSES.map((item) => (
-            <option key={item || "all"} value={item}>
-              {item || "все статусы"}
-            </option>
-          ))}
-        </select>
-        <button type="submit">Фильтровать</button>
-      </form>
+      <div className="split">
+        <div className="stack">
+          {decisions.length === 0 && <p className="muted">По фильтру ничего нет.</p>}
+          <ul className="list">
+            {decisions.map((decision) => (
+              <li key={decision.id}>
+                <Link className="decision-card" href={`/workspaces/${workspaceId}/decisions/${decision.id}`}>
+                  <div className="decision-card-top">
+                    <strong>{decision.title}</strong>
+                    <span className="badge accent">{decision.status}</span>
+                  </div>
+                  {decision.description && <p className="muted clamp">{decision.description}</p>}
+                  {decision.tags.length > 0 && (
+                    <div className="badges">
+                      {decision.tags.map((item) => (
+                        <span key={item} className="badge">{item}</span>
+                      ))}
+                    </div>
+                  )}
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </div>
 
-      {decisions.length === 0 && <p>Решений пока нет.</p>}
-      <ul style={{ listStyle: "none", padding: 0, display: "grid", gap: "0.5rem" }}>
-        {decisions.map((decision) => (
-          <li key={decision.id} style={{ border: "1px solid #ddd", padding: "0.8rem" }}>
-            <Link href={`/workspaces/${workspaceId}/decisions/${decision.id}`}>
-              <strong>{decision.title}</strong>
-            </Link>
-            <div>
-              {decision.status}
-              {decision.tags.length ? ` · ${decision.tags.join(", ")}` : ""}
-            </div>
-          </li>
-        ))}
-      </ul>
+        <aside className="side-panel stack">
+          <section className="panel-block stack">
+            <h2>Фильтр</h2>
+            <form onSubmit={onFilter} className="stack">
+              <input placeholder="поиск" value={q} onChange={(e) => setQ(e.target.value)} />
+              <input placeholder="тег" value={tag} onChange={(e) => setTag(e.target.value)} />
+              <select value={status} onChange={(e) => setStatus(e.target.value as DecisionStatus | "")}>
+                {STATUSES.map((item) => (
+                  <option key={item || "all"} value={item}>
+                    {item || "все статусы"}
+                  </option>
+                ))}
+              </select>
+              <button type="submit">Применить</button>
+            </form>
+          </section>
 
-      <h2>Новое решение</h2>
-      <form onSubmit={onCreate} style={{ display: "grid", gap: "0.5rem" }}>
-        <input
-          required
-          minLength={1}
-          placeholder="название"
-          value={title}
-          onChange={(e) => setTitle(e.target.value)}
-          style={{ padding: "0.6rem" }}
-        />
-        <textarea
-          placeholder="описание (необязательно)"
-          value={description}
-          onChange={(e) => setDescription(e.target.value)}
-          style={{ padding: "0.6rem", minHeight: 80 }}
-        />
-        <input
-          placeholder="теги через запятую"
-          value={tagsText}
-          onChange={(e) => setTagsText(e.target.value)}
-          style={{ padding: "0.6rem" }}
-        />
-        <button type="submit" disabled={pending}>
-          Создать
-        </button>
-      </form>
-      {error && <p style={{ color: "crimson" }}>{error}</p>}
-    </main>
+          {canEdit && (
+            <section className="panel-block stack">
+              <h2>Новое решение</h2>
+              <form onSubmit={onCreate} className="stack">
+                <input required minLength={1} placeholder="название" value={title} onChange={(e) => setTitle(e.target.value)} />
+                <textarea placeholder="описание" value={description} onChange={(e) => setDescription(e.target.value)} />
+                <input placeholder="теги через запятую" value={tagsText} onChange={(e) => setTagsText(e.target.value)} />
+                <button type="submit" disabled={pending}>Создать</button>
+              </form>
+            </section>
+          )}
+        </aside>
+      </div>
+      {error && <p className="error">{error}</p>}
+    </div>
   );
 }

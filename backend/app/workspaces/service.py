@@ -130,3 +130,44 @@ def update_workspace_settings(
     db.commit()
     db.refresh(workspace)
     return workspace
+
+
+def list_all_memberships(db: Session) -> list[tuple[WorkspaceMember, Workspace]]:
+    return (
+        db.query(WorkspaceMember, Workspace)
+        .join(Workspace, Workspace.id == WorkspaceMember.workspace_id)
+        .all()
+    )
+
+
+def assign_membership(
+    db: Session,
+    user_id: str,
+    workspace_id: str,
+    role: WorkspaceRole,
+    *,
+    actor: User,
+) -> WorkspaceMember:
+    user = db.query(User).filter(User.id == user_id).first()
+    if user is None:
+        raise ValueError("User not found")
+    workspace = get_workspace(db, workspace_id)
+    if workspace is None:
+        raise ValueError("Workspace not found")
+    if workspace.owner_id != actor.id:
+        raise ValueError("You can only assign people to your own workspaces")
+    if role not in {WorkspaceRole.VIEWER, WorkspaceRole.MEMBER}:
+        raise ValueError("Only viewer or member can be assigned")
+
+    membership = get_membership(db, workspace, user)
+    if membership is None:
+        membership = WorkspaceMember(workspace_id=workspace.id, user_id=user.id, role=role)
+        db.add(membership)
+    else:
+        if membership.role == WorkspaceRole.OWNER:
+            raise ValueError("Cannot change the owner's role")
+        membership.role = role
+    db.commit()
+    db.refresh(membership)
+    return membership
+

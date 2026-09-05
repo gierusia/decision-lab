@@ -1,7 +1,8 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.auth.models import User
+from app.core.admins import is_platform_admin
 from app.core.database import get_db
 from app.core.deps import get_current_user
 from app.workspaces import service
@@ -19,6 +20,8 @@ def create_workspace(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
+    if not is_platform_admin(current_user.email):
+        raise HTTPException(status_code=403, detail="Only a platform admin can create a workspace")
     return service.create_workspace(
         db, current_user, payload.name, payload.stale_threshold_days
     )

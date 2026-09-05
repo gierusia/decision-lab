@@ -1,0 +1,4 @@
+admins:
+  - email: admin@example.com
+    password: "changeme-admin"
+    full_name: Platform admin

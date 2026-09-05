@@ -36,6 +36,7 @@ export default function DecisionHeaderPage() {
   const [actualDraft, setActualDraft] = useState<Record<string, string>>({});
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
+  const [creating, setCreating] = useState(false);
 
   const canEdit = role === "owner" || role === "member";
   const isOwner = role === "owner";
@@ -153,6 +154,7 @@ export default function DecisionHeaderPage() {
       setMetricName("");
       setTargetValue("");
       setTolerance("5");
+      setCreating(false);
       await reloadAll();
     } catch (err) {
       setError(err instanceof ApiError ? `${err.status}: ${err.detail}` : "Не удалось создать опыт");
@@ -195,24 +197,15 @@ export default function DecisionHeaderPage() {
   }
 
   return (
-    <main style={{ maxWidth: 800, margin: "2rem auto", padding: "0 1rem" }}>
-      <p>
-        <Link href={`/workspaces/${workspaceId}/decisions`}>К списку решений</Link>
-      </p>
-      <header style={{ display: "flex", justifyContent: "space-between", gap: "1rem" }}>
-        <h1>{summary.title}</h1>
-        <button type="button" onClick={() => logout()}>
-          Выйти
-        </button>
-      </header>
+    <div className="stack">
+      <h1 className="page-title">{summary.title}</h1>
 
-      <p>
-        статус: {summary.status}
-        {" · "}
-        readiness: {summary.readiness}
-        {summary.is_stale ? " · stale" : ""}
-      </p>
-      <p>автор: {summary.author.full_name ?? summary.author.id}</p>
+      <div className="badges">
+        <span className="badge accent">{summary.status}</span>
+        <span className="badge">{summary.readiness}</span>
+        {summary.is_stale && <span className="badge warn">stale</span>}
+      </div>
+      <p className="muted">автор: {summary.author.full_name ?? summary.author.id}</p>
 
       {canEdit && !closed && (
         <form onSubmit={onSave} style={{ display: "grid", gap: "0.5rem", margin: "1rem 0" }}>
@@ -262,64 +255,52 @@ export default function DecisionHeaderPage() {
 
       {isOwner && !closed && (
         <p>
-          <button type="button" disabled={pending} onClick={onDelete}>
+          <button type="button" className="danger" disabled={pending} onClick={onDelete}>
             Удалить решение
           </button>
         </p>
       )}
 
-      <h2>Эксперименты</h2>
-      {experiments.length === 0 && <p>Опытов пока нет.</p>}
-      <div style={{ overflowX: "auto" }}>
-        <table style={{ width: "100%", borderCollapse: "collapse" }}>
-          <thead>
-            <tr>
-              {["metric", "dir", "target", "actual", "tol%", "status", "verdict", "flag", "frozen", ""].map((h) => (
-                <th key={h} style={{ textAlign: "left", padding: "0.3rem" }}>{h}</th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
+      <div className="row" style={{ justifyContent: "space-between" }}>
+        <h2>Эксперименты</h2>
+        {canEdit && summary.status === "active" && (
+          <button type="button" onClick={() => setCreating(true)}>
+            Новый опыт
+          </button>
+        )}
+      </div>
+      {experiments.length === 0 && <p className="muted">Опытов пока нет.</p>}
+      <ul className="list">
             {experiments.map((experiment) => {
               const own = experiment.created_by === userId;
-              const canDelete = isOwner || own;
+              const canDelete = isOwner;
               const nexts = nextExperimentStatuses(experiment.status);
               const actualValue = actualDraft[experiment.id] ?? experiment.actual_value ?? "";
               return (
-                <tr key={experiment.id}>
-                  <td style={{ padding: "0.3rem" }}>{experiment.metric_name}</td>
-                  <td style={{ padding: "0.3rem" }}>{experiment.metric_direction === "higher_is_better" ? "↑" : "↓"}</td>
-                  <td style={{ padding: "0.3rem" }}>{experiment.target_value}</td>
-                  <td style={{ padding: "0.3rem" }}>
-                    {canEdit && experiment.status === "running" && !experiment.is_frozen ? (
-                      <input
-                        value={actualValue}
-                        onChange={(e) =>
-                          setActualDraft((prev) => ({ ...prev, [experiment.id]: e.target.value }))
-                        }
-                        style={{ width: 80 }}
-                      />
-                    ) : (
-                      experiment.actual_value ?? "—"
-                    )}
-                  </td>
-                  <td style={{ padding: "0.3rem" }}>{experiment.partial_tolerance_percent}</td>
-                  <td style={{ padding: "0.3rem" }}>{experiment.status}</td>
-                  <td style={{ padding: "0.3rem" }}>{experiment.verdict ?? "—"}</td>
-                  <td style={{ padding: "0.3rem" }}>{experiment.feature_flag_key ?? "—"}</td>
-                  <td style={{ padding: "0.3rem" }}>
-                    {experiment.is_frozen ? "yes" : "no"}
-                    {isOwner && experiment.status === "completed" && (
-                      <button
-                        type="button"
-                        disabled={pending}
-                        onClick={() => patchExperiment(experiment.id, { is_frozen: !experiment.is_frozen })}
-                      >
-                        {experiment.is_frozen ? "снять" : "заморозить"}
-                      </button>
-                    )}
-                  </td>
-                  <td style={{ padding: "0.3rem" }}>
+                <li key={experiment.id} className="decision-card">
+                  <div className="decision-card-top">
+                    <strong>{experiment.metric_name}</strong>
+                    <span className="badge accent">{experiment.status}</span>
+                  </div>
+                  <p className="muted">
+                    цель {experiment.target_value} · {experiment.metric_direction === "higher_is_better" ? "выше лучше" : "ниже лучше"} · допуск {experiment.partial_tolerance_percent}%
+                  </p>
+                  <div className="badges">
+                    {experiment.verdict && <span className="badge">{experiment.verdict}</span>}
+                    {experiment.is_frozen && <span className="badge warn">frozen</span>}
+                    {experiment.feature_flag_key && <span className="badge">{experiment.feature_flag_key}</span>}
+                  </div>
+                  {canEdit && experiment.status === "running" && !experiment.is_frozen && (
+                    <input
+                      placeholder="actual"
+                      value={actualValue}
+                      onChange={(e) => setActualDraft((prev) => ({ ...prev, [experiment.id]: e.target.value }))}
+                    />
+                  )}
+                  {experiment.status !== "running" && (
+                    <p className="muted">факт: {experiment.actual_value ?? "—"}</p>
+                  )}
+                  <div className="row">
                     {canEdit &&
                       nexts.map((target) => {
                         const needsActual = target === "completed";
@@ -340,54 +321,61 @@ export default function DecisionHeaderPage() {
                           </button>
                         );
                       })}
+                    {isOwner && experiment.status === "completed" && (
+                      <button
+                        type="button"
+                        className="ghost"
+                        disabled={pending}
+                        onClick={() => patchExperiment(experiment.id, { is_frozen: !experiment.is_frozen })}
+                      >
+                        {experiment.is_frozen ? "разморозить" : "заморозить"}
+                      </button>
+                    )}
                     {canDelete && (
-                      <button type="button" disabled={pending} onClick={() => onDeleteExperiment(experiment)}>
+                      <button type="button" className="danger" disabled={pending} onClick={() => onDeleteExperiment(experiment)}>
                         удалить
                       </button>
                     )}
-                  </td>
-                </tr>
+                  </div>
+                </li>
               );
             })}
-          </tbody>
-        </table>
-      </div>
+          </ul>
 
-      {canEdit && summary.status === "active" && (
-        <form onSubmit={onCreateExperiment} style={{ display: "grid", gap: "0.5rem", marginTop: "1rem" }}>
-          <h3>Новый опыт</h3>
-          <input
-            required
-            placeholder="метрика"
-            value={metricName}
-            onChange={(e) => setMetricName(e.target.value)}
-            style={{ padding: "0.6rem" }}
-          />
-          <select value={direction} onChange={(e) => setDirection(e.target.value as MetricDirection)}>
-            <option value="higher_is_better">выше — лучше</option>
-            <option value="lower_is_better">ниже — лучше</option>
-          </select>
-          <input
-            required
-            placeholder="цель"
-            value={targetValue}
-            onChange={(e) => setTargetValue(e.target.value)}
-            style={{ padding: "0.6rem" }}
-          />
-          <input
-            required
-            placeholder="допуск %"
-            value={tolerance}
-            onChange={(e) => setTolerance(e.target.value)}
-            style={{ padding: "0.6rem" }}
-          />
-          <button type="submit" disabled={pending}>
-            Добавить опыт
-          </button>
-        </form>
+      {creating && (
+        <div className="modal-back" onClick={() => setCreating(false)}>
+          <div className="auth-card stack" onClick={(event) => event.stopPropagation()}>
+            <h2>Новый опыт</h2>
+            <form onSubmit={onCreateExperiment} className="stack">
+              <label className="field">
+                <span className="muted">метрика</span>
+                <input required placeholder="например conversion" value={metricName} onChange={(e) => setMetricName(e.target.value)} />
+              </label>
+              <label className="field">
+                <span className="muted">направление</span>
+                <select value={direction} onChange={(e) => setDirection(e.target.value as MetricDirection)}>
+                  <option value="higher_is_better">выше — лучше</option>
+                  <option value="lower_is_better">ниже — лучше</option>
+                </select>
+              </label>
+              <label className="field">
+                <span className="muted">цель (число)</span>
+                <input required type="number" step="any" placeholder="100" value={targetValue} onChange={(e) => setTargetValue(e.target.value)} />
+              </label>
+              <label className="field">
+                <span className="muted">допуск %</span>
+                <input required type="number" min="0" max="100" step="any" placeholder="5" value={tolerance} onChange={(e) => setTolerance(e.target.value)} />
+              </label>
+              <div className="row">
+                <button type="submit" disabled={pending}>Создать</button>
+                <button type="button" className="ghost" onClick={() => setCreating(false)}>Отмена</button>
+              </div>
+            </form>
+          </div>
+        </div>
       )}
 
-      {error && <p style={{ color: "crimson" }}>{error}</p>}
-    </main>
+      {error && <p className="error">{error}</p>}
+    </div>
   );
 }

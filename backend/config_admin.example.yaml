@@ -1,0 +1,6 @@
+# Copy to config_admin.yaml next to the backend app.
+
+admins:
+  - email: admin@example.com
+    password: "changeme-admin"
+    full_name: Platform admin
