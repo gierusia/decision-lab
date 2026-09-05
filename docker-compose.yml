@@ -15,6 +15,7 @@ services:
       interval: 5s
       timeout: 5s
       retries: 5
+
   backend:
     build:
       context: ./backend
@@ -24,12 +25,34 @@ services:
       - .env
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER:-decision_lab}:${POSTGRES_PASSWORD:-decision_lab}@postgres:5432/${POSTGRES_DB:-decision_lab}
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3000}
+      COOKIE_SECURE: "false"
     volumes:
       - ./backend:/app
     ports:
-      - "8000:8000"
+      - "8001:8000"
     depends_on:
       postgres:
         condition: service_healthy
+
+  frontend:
+    build:
+      context: ./frontend
+      network: host
+    restart: unless-stopped
+    environment:
+      API_PROXY_TARGET: http://backend:8000
+    dns:
+      - 8.8.8.8
+      - 1.1.1.1
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./frontend:/app
+      - frontend_node_modules:/app/node_modules
+    depends_on:
+      - backend
+
 volumes:
   pgdata:
+  frontend_node_modules:

@@ -103,3 +103,31 @@ def test_profile_update_rejects_wrong_current_password(client):
     )
 
     assert response.status_code == 400
+
+
+def test_login_sets_httponly_session_cookie(client):
+    register(client)
+    response = login(client)
+
+    assert response.cookies.get("access_token")
+    assert "httponly" in response.headers.get("set-cookie", "").lower()
+
+
+def test_me_accepts_session_cookie_without_bearer(client):
+    register(client)
+    login(client)
+
+    response = client.get("/auth/me")
+
+    assert response.status_code == 200
+    assert response.json()["email"] == EMAIL
+
+
+def test_logout_clears_session_cookie(client):
+    register(client)
+    login(client)
+    assert client.get("/auth/me").status_code == 200
+
+    logout_response = client.post("/auth/logout")
+    assert logout_response.status_code == 204
+    assert client.get("/auth/me").status_code == 401

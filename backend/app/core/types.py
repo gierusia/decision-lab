@@ -10,6 +10,21 @@ import uuid
 
 from sqlalchemy import CHAR, TypeDecorator
 from sqlalchemy.dialects.postgresql import UUID as PostgresUUID
+from sqlalchemy import Enum as SAEnum
+
+
+def pg_enum(enum_cls, *, name: str):
+    """Persist enum *values* (`owner`), not member names (`OWNER`).
+
+    Alembic already created Postgres types with lowercase labels.
+    Without values_callable SQLAlchemy sends OWNER/DRAFT and the insert
+    dies with a 500 on a live database.
+    """
+    return SAEnum(
+        enum_cls,
+        name=name,
+        values_callable=lambda members: [member.value for member in members],
+    )
 
 
 class GUID(TypeDecorator):

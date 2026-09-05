@@ -13,6 +13,7 @@ router = APIRouter()
 
 
 @router.post("", response_model=WorkspaceOut, status_code=201)
+@router.post("/", response_model=WorkspaceOut, status_code=201, include_in_schema=False)
 def create_workspace(
     payload: WorkspaceCreateRequest,
     current_user: User = Depends(get_current_user),

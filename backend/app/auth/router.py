@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Response, status
 from sqlalchemy.orm import Session
 
 from app.auth import service
@@ -13,6 +13,7 @@ from app.auth.schemas import (
 from app.core.database import get_db
 from app.core.deps import get_current_user
 from app.core.security import create_access_token
+from app.core.session import clear_session_cookie, set_session_cookie
 
 router = APIRouter()
 
@@ -22,21 +23,24 @@ def register(payload: RegisterRequest, db: Session = Depends(get_db)):
     if service.get_user_by_email(db, payload.email) is not None:
         raise HTTPException(status_code=400, detail="Email already registered")
     try:
-        # Проверка выше закрывает обычный случай без лишнего похода в БД
-        # на неудачу; try/except здесь — на случай гонки двух одновременных
-        # регистраций с одним email (см. комментарий в service.create_user).
         return service.create_user(db, payload.email, payload.password, payload.full_name)
     except ValueError as error:
         raise HTTPException(status_code=400, detail=str(error)) from error
 
 
 @router.post("/login", response_model=TokenResponse)
-def login(payload: LoginRequest, db: Session = Depends(get_db)):
+def login(payload: LoginRequest, response: Response, db: Session = Depends(get_db)):
     user = service.authenticate_user(db, payload.email, payload.password)
     if user is None:
         raise HTTPException(status_code=401, detail="Invalid email or password")
     token = create_access_token(subject=str(user.id))
+    set_session_cookie(response, token)
     return TokenResponse(access_token=token)
+
+
+@router.post("/logout", status_code=status.HTTP_204_NO_CONTENT)
+def logout(response: Response):
+    clear_session_cookie(response)
 
 
 @router.get("/me", response_model=UserOut)

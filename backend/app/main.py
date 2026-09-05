@@ -1,6 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from app.core.config import settings
 from app.auth.router import router as auth_router
 from app.dashboard.router import router as dashboard_router
 from app.decisions.router import router as decisions_router
@@ -12,7 +13,7 @@ app = FastAPI(title="Decision Lab")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=settings.cors_origin_list,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

@@ -3,12 +3,11 @@ import uuid
 from datetime import datetime, timezone
 
 from sqlalchemy import DateTime, ForeignKey, Integer, String, UniqueConstraint
-from sqlalchemy import Enum as SAEnum
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.auth.models import User
 from app.core.database import Base
-from app.core.types import GUID
+from app.core.types import GUID, pg_enum
 
 
 class WorkspaceRole(str, enum.Enum):
@@ -40,7 +39,7 @@ class WorkspaceMember(Base):
         GUID(), ForeignKey("workspaces.id"), nullable=False
     )
     user_id: Mapped[uuid.UUID] = mapped_column(GUID(), ForeignKey("users.id"), nullable=False)
-    role: Mapped[WorkspaceRole] = mapped_column(SAEnum(WorkspaceRole), nullable=False)
+    role: Mapped[WorkspaceRole] = mapped_column(pg_enum(WorkspaceRole, name="workspacerole"), nullable=False)
 
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)

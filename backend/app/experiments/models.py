@@ -4,11 +4,10 @@ from datetime import datetime, timezone
 from decimal import Decimal
 
 from sqlalchemy import Boolean, DateTime, ForeignKey, Numeric, String, Text
-from sqlalchemy import Enum as SAEnum
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.database import Base
-from app.core.types import GUID
+from app.core.types import GUID, pg_enum
 
 
 class ExperimentStatus(str, enum.Enum):
@@ -38,15 +37,15 @@ class Experiment(Base):
     created_by: Mapped[uuid.UUID] = mapped_column(GUID(), ForeignKey("users.id"), nullable=False)
 
     status: Mapped[ExperimentStatus] = mapped_column(
-        SAEnum(ExperimentStatus), nullable=False, default=ExperimentStatus.PLANNED
+        pg_enum(ExperimentStatus, name="experimentstatus"), nullable=False, default=ExperimentStatus.PLANNED
     )
     verdict: Mapped[ExperimentVerdict | None] = mapped_column(
-        SAEnum(ExperimentVerdict), nullable=True, default=None
+        pg_enum(ExperimentVerdict, name="experimentverdict"), nullable=True, default=None
     )
 
     metric_name: Mapped[str] = mapped_column(String, nullable=False)
     metric_direction: Mapped[MetricDirection] = mapped_column(
-        SAEnum(MetricDirection), nullable=False
+        pg_enum(MetricDirection, name="metricdirection"), nullable=False
     )
     target_value: Mapped[Decimal] = mapped_column(Numeric(18, 6), nullable=False)
     actual_value: Mapped[Decimal | None] = mapped_column(Numeric(18, 6), nullable=True)
