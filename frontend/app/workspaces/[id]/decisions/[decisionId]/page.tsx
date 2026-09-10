@@ -7,6 +7,7 @@ import { api, ApiError, logout } from "../../../../../lib/api";
 import { canCloseDecision, nextStatuses } from "../../../../../lib/decisionTransitions";
 import { nextExperimentStatuses } from "../../../../../lib/experimentTransitions";
 import type {
+  ActivityEntry,
   DecisionStatus,
   DecisionSummary,
   Experiment,
@@ -16,6 +17,31 @@ import type {
   WorkspaceRole,
 } from "../../../../../lib/types";
 
+function MetricBars({ experiment }: { experiment: Experiment }) {
+  const target = Number(experiment.target_value);
+  const actual = experiment.actual_value == null ? null : Number(experiment.actual_value);
+  const base = experiment.baseline_rate == null ? null : Number(experiment.baseline_rate);
+  if (Number.isNaN(target)) return null;
+  const max = Math.max(target, actual ?? 0, base ?? 0, 1);
+  const rows = [
+    { key: "target", label: "цель", value: target, cls: "target" },
+    ...(actual != null ? [{ key: "actual", label: "факт", value: actual, cls: "actual" }] : []),
+    ...(base != null ? [{ key: "base", label: "база", value: base, cls: "base" }] : []),
+  ];
+  if (rows.length < 2 && actual == null) return null;
+  return (
+    <div className="metric-bars">
+      {rows.map((row) => (
+        <div key={row.key} className="metric-bar">
+          <span>{row.label}</span>
+          <span className={`fill ${row.cls}`} style={{ width: `${Math.min(100, (row.value / max) * 100)}%` }} />
+          <span>{row.value}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 export default function DecisionHeaderPage() {
   const params = useParams<{ id: string; decisionId: string }>();
   const router = useRouter();
@@ -24,6 +50,7 @@ export default function DecisionHeaderPage() {
 
   const [summary, setSummary] = useState<DecisionSummary | null>(null);
   const [experiments, setExperiments] = useState<Experiment[]>([]);
+  const [activity, setActivity] = useState<ActivityEntry[]>([]);
   const [userId, setUserId] = useState<string | null>(null);
   const [role, setRole] = useState<WorkspaceRole | null>(null);
   const [title, setTitle] = useState("");
@@ -33,6 +60,8 @@ export default function DecisionHeaderPage() {
   const [direction, setDirection] = useState<MetricDirection>("higher_is_better");
   const [targetValue, setTargetValue] = useState("");
   const [tolerance, setTolerance] = useState("5");
+  const [sampleSize, setSampleSize] = useState("");
+  const [baseline, setBaseline] = useState("");
   const [actualDraft, setActualDraft] = useState<Record<string, string>>({});
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
@@ -46,12 +75,14 @@ export default function DecisionHeaderPage() {
     Promise.all([
       api<DecisionSummary>(`/workspaces/${workspaceId}/decisions/${decisionId}/summary`),
       api<Experiment[]>(`/workspaces/${workspaceId}/decisions/${decisionId}/experiments`),
+      api<ActivityEntry[]>(`/workspaces/${workspaceId}/activity?decision_id=${decisionId}`),
       api<User>("/auth/me"),
       api<Member[]>(`/workspaces/${workspaceId}/members`),
     ])
-      .then(([item, items, me, members]) => {
+      .then(([item, items, feed, me, members]) => {
         setSummary(item);
         setExperiments(items);
+        setActivity(feed);
         setUserId(me.id);
         setTitle(item.title);
         setDescription(item.description ?? "");
@@ -66,12 +97,14 @@ export default function DecisionHeaderPage() {
   }, [workspaceId, decisionId]);
 
   async function reloadAll() {
-    const [item, items] = await Promise.all([
+    const [item, items, feed] = await Promise.all([
       api<DecisionSummary>(`/workspaces/${workspaceId}/decisions/${decisionId}/summary`),
       api<Experiment[]>(`/workspaces/${workspaceId}/decisions/${decisionId}/experiments`),
+      api<ActivityEntry[]>(`/workspaces/${workspaceId}/activity?decision_id=${decisionId}`),
     ]);
     setSummary(item);
     setExperiments(items);
+    setActivity(feed);
     setTitle(item.title);
     setDescription(item.description ?? "");
     setTagsText(item.tags.join(", "));
@@ -149,11 +182,15 @@ export default function DecisionHeaderPage() {
           metric_direction: direction,
           target_value: targetValue,
           partial_tolerance_percent: tolerance,
+          sample_size: sampleSize ? Number(sampleSize) : null,
+          baseline_rate: baseline || null,
         }),
       });
       setMetricName("");
       setTargetValue("");
       setTolerance("5");
+      setSampleSize("");
+      setBaseline("");
       setCreating(false);
       await reloadAll();
     } catch (err) {
@@ -289,7 +326,14 @@ export default function DecisionHeaderPage() {
                     {experiment.verdict && <span className="badge">{experiment.verdict}</span>}
                     {experiment.is_frozen && <span className="badge warn">frozen</span>}
                     {experiment.feature_flag_key && <span className="badge">{experiment.feature_flag_key}</span>}
+                    {experiment.z_test && (
+                      <span className={experiment.z_test.significant ? "badge accent" : "badge"}>
+                        {experiment.z_test.significant ? "значимо" : "не значимо"} p={experiment.z_test.p_value}
+                        {experiment.z_test.approximation_poor ? " · слабая выборка" : ""}
+                      </span>
+                    )}
                   </div>
+                  <MetricBars experiment={experiment} />
                   {canEdit && experiment.status === "running" && !experiment.is_frozen && (
                     <input
                       placeholder="actual"
@@ -366,6 +410,15 @@ export default function DecisionHeaderPage() {
                 <span className="muted">допуск %</span>
                 <input required type="number" min="0" max="100" step="any" placeholder="5" value={tolerance} onChange={(e) => setTolerance(e.target.value)} />
               </label>
+              <label className="field">
+                <span className="muted">выборка n (необязательно)</span>
+                <input type="number" min="1" placeholder="1000" value={sampleSize} onChange={(e) => setSampleSize(e.target.value)} />
+              </label>
+              <label className="field">
+                <span className="muted">база % или доля (необязательно)</span>
+                <input type="number" step="any" placeholder="7" value={baseline} onChange={(e) => setBaseline(e.target.value)} />
+              </label>
+              <p className="muted">n и база нужны только для z-теста долей. Вердикт по-прежнему считает цель и допуск.</p>
               <div className="row">
                 <button type="submit" disabled={pending}>Создать</button>
                 <button type="button" className="ghost" onClick={() => setCreating(false)}>Отмена</button>
@@ -374,6 +427,19 @@ export default function DecisionHeaderPage() {
           </div>
         </div>
       )}
+
+      <h2>Лента решения</h2>
+      {activity.length === 0 && <p className="muted">Событий по этому решению пока нет.</p>}
+      <ul className="list">
+        {activity.map((entry) => (
+          <li key={entry.id} className="list-card">
+            <div>{entry.summary}</div>
+            <div className="muted">
+              {entry.actor_full_name || entry.actor_email} · {new Date(entry.created_at).toLocaleString()}
+            </div>
+          </li>
+        ))}
+      </ul>
 
       {error && <p className="error">{error}</p>}
     </div>

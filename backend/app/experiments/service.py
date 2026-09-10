@@ -3,6 +3,8 @@ from decimal import Decimal
 
 from sqlalchemy.orm import Session
 
+from app.activity import service as activity_service
+from app.activity.models import ActivityAction, ActivityEntityType
 from app.auth.models import User
 from app.decisions.models import Decision, DecisionStatus
 from app.experiments.models import (
@@ -13,6 +15,7 @@ from app.experiments.models import (
 )
 from app.experiments.transitions import is_transition_allowed
 from app.experiments.verdict import compute_verdict
+from app.experiments.ztest import compute_z_test
 from app.workspaces.models import Workspace, WorkspaceRole
 
 _METRIC_FIELDS = (
@@ -22,6 +25,8 @@ _METRIC_FIELDS = (
     "actual_value",
     "partial_tolerance_percent",
     "feature_flag_key",
+    "sample_size",
+    "baseline_rate",
 )
 
 
@@ -61,6 +66,8 @@ def create_experiment(
     actual_value: Decimal | None,
     notes: str | None,
     feature_flag_key: str | None,
+    sample_size: int | None = None,
+    baseline_rate: Decimal | None = None,
 ) -> Experiment:
     if decision.status != DecisionStatus.ACTIVE:
         raise ExperimentError(
@@ -79,9 +86,23 @@ def create_experiment(
         partial_tolerance_percent=_to_decimal(partial_tolerance_percent),
         notes=notes,
         feature_flag_key=feature_flag_key,
+        sample_size=sample_size,
+        baseline_rate=_to_decimal(baseline_rate),
         is_frozen=False,
     )
     db.add(experiment)
+    db.flush()  # нужен experiment.id до commit, чтобы сослаться на него из лога
+
+    activity_service.record_activity(
+        db,
+        workspace_id=decision.workspace_id,
+        actor=creator,
+        action=ActivityAction.EXPERIMENT_CREATED,
+        entity_type=ActivityEntityType.EXPERIMENT,
+        entity_id=experiment.id,
+        summary=f"Добавлен эксперимент «{metric_name}» к решению «{decision.title}»",
+    )
+
     db.commit()
     db.refresh(experiment)
     return experiment
@@ -131,12 +152,16 @@ def update_experiment(
     partial_tolerance_percent: Decimal | None,
     notes: str | None,
     feature_flag_key: str | None,
+    sample_size: int | None,
+    baseline_rate: Decimal | None,
     status: ExperimentStatus | None,
     is_frozen: bool | None,
     *,
     notes_provided: bool,
     feature_flag_provided: bool,
     actual_provided: bool,
+    sample_size_provided: bool = False,
+    baseline_provided: bool = False,
 ) -> Experiment:
     if is_frozen is not None:
         if actor_role != WorkspaceRole.OWNER:
@@ -162,7 +187,7 @@ def update_experiment(
         v is not None
         for k, v in metric_patch.items()
         if k != "feature_flag_key"
-    ) or actual_provided or (feature_flag_provided and feature_flag_key is not None)
+    ) or actual_provided or (feature_flag_provided and feature_flag_key is not None) or sample_size_provided or baseline_provided
 
     # notes можно править всегда, кроме cancelled decision
     if notes_provided or touching_metrics or status is not None:
@@ -186,6 +211,10 @@ def update_experiment(
         experiment.notes = notes
     if feature_flag_provided:
         experiment.feature_flag_key = feature_flag_key
+    if sample_size_provided:
+        experiment.sample_size = sample_size
+    if baseline_provided:
+        experiment.baseline_rate = _to_decimal(baseline_rate)
 
     if status is not None and status != experiment.status:
         if decision.status != DecisionStatus.ACTIVE:
@@ -196,6 +225,7 @@ def update_experiment(
             raise ExperimentError(
                 f"Cannot move experiment from '{experiment.status.value}' to '{status.value}'"
             )
+        old_status = experiment.status
         if status == ExperimentStatus.COMPLETED:
             if experiment.actual_value is None:
                 raise ExperimentError("actual_value is required to complete an experiment")
@@ -207,6 +237,22 @@ def update_experiment(
             )
             experiment.is_frozen = True
         experiment.status = status
+
+        # Вердикт при complete — одним словом в summary, это не diff по
+        # полям, а сам итог перехода, ради которого его вообще стоит читать.
+        verdict_suffix = f" — вердикт: {experiment.verdict.value}" if experiment.verdict else ""
+        activity_service.record_activity(
+            db,
+            workspace_id=decision.workspace_id,
+            actor=actor,
+            action=ActivityAction.EXPERIMENT_STATUS_CHANGED,
+            entity_type=ActivityEntityType.EXPERIMENT,
+            entity_id=experiment.id,
+            summary=(
+                f"Статус эксперимента «{experiment.metric_name}» "
+                f"(«{decision.title}»): {old_status.value} → {status.value}{verdict_suffix}"
+            ),
+        )
 
     if (
         experiment.status == ExperimentStatus.COMPLETED

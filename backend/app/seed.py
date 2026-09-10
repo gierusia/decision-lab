@@ -103,6 +103,8 @@ def _get_or_create_experiment(
     status: ExperimentStatus,
     flag: str | None = None,
     notes: str | None = None,
+    sample_size: int | None = None,
+    baseline_rate=None,
 ) -> None:
     experiment = (
         db.query(Experiment)
@@ -128,6 +130,8 @@ def _get_or_create_experiment(
             partial_tolerance_percent=tol_d,
             notes=notes,
             feature_flag_key=flag,
+            sample_size=sample_size,
+            baseline_rate=None if baseline_rate is None else Decimal(str(baseline_rate)),
             is_frozen=status == ExperimentStatus.COMPLETED,
         )
         db.add(experiment)
@@ -140,6 +144,8 @@ def _get_or_create_experiment(
         experiment.metric_direction = direction
         experiment.notes = notes
         experiment.feature_flag_key = flag
+        experiment.sample_size = sample_size
+        experiment.baseline_rate = None if baseline_rate is None else Decimal(str(baseline_rate))
         experiment.is_frozen = status == ExperimentStatus.COMPLETED
     db.commit()
 
@@ -182,6 +188,7 @@ def run() -> None:
             db, onboarding, owner,
             "доля прошедших чек-лист", MetricDirection.HIGHER_IS_BETTER,
             80, 62, 10, ExperimentStatus.RUNNING, notes="идёт пилот на одной команде",
+            sample_size=40, baseline_rate=55,
         )
 
         recs = _get_or_create_decision(
@@ -197,11 +204,13 @@ def run() -> None:
             db, recs, owner,
             "CTR выдачи", MetricDirection.HIGHER_IS_BETTER,
             8, 8.4, 5, ExperimentStatus.COMPLETED, flag="recs-v2",
+            sample_size=8000, baseline_rate=7.2,
         )
         _get_or_create_experiment(
             db, recs, owner,
             "precision@10", MetricDirection.HIGHER_IS_BETTER,
             40, 38, 10, ExperimentStatus.COMPLETED,
+            sample_size=1200, baseline_rate=36,
         )
 
         tariff = _get_or_create_decision(
@@ -217,6 +226,7 @@ def run() -> None:
             db, tariff, owner,
             "конверсия в оплату", MetricDirection.HIGHER_IS_BETTER,
             12, 7, 5, ExperimentStatus.COMPLETED,
+            sample_size=1500, baseline_rate=9,
         )
 
         print(f"Demo Lab готова. Админ: {owner.email}")

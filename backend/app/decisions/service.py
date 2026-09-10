@@ -3,6 +3,8 @@ import uuid
 from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
+from app.activity import service as activity_service
+from app.activity.models import ActivityAction, ActivityEntityType
 from app.auth.models import User
 from app.decisions.models import Decision, DecisionStatus, DecisionTag
 from app.decisions.transitions import is_transition_allowed
@@ -26,6 +28,18 @@ def create_decision(
         tags=[DecisionTag(tag=t) for t in tags],
     )
     db.add(decision)
+    db.flush()  # нужен decision.id до commit, чтобы сослаться на него из лога
+
+    activity_service.record_activity(
+        db,
+        workspace_id=workspace.id,
+        actor=creator,
+        action=ActivityAction.DECISION_CREATED,
+        entity_type=ActivityEntityType.DECISION,
+        entity_id=decision.id,
+        summary=f"Создано решение «{decision.title}»",
+    )
+
     db.commit()
     db.refresh(decision)
     return decision
@@ -71,6 +85,7 @@ def update_decision(
     status: DecisionStatus | None,
     tags: list[str] | None,
     *,
+    actor: User,
     actor_is_owner: bool = False,
 ) -> Decision:
     if title is not None:
@@ -90,7 +105,19 @@ def update_decision(
                 raise ValueError(
                     "Cannot close a decision while experiments are still planned or running"
                 )
+        old_status = decision.status
         decision.status = status
+
+        if old_status != status:
+            activity_service.record_activity(
+                db,
+                workspace_id=decision.workspace_id,
+                actor=actor,
+                action=ActivityAction.DECISION_STATUS_CHANGED,
+                entity_type=ActivityEntityType.DECISION,
+                entity_id=decision.id,
+                summary=f"Статус «{decision.title}»: {old_status.value} → {status.value}",
+            )
 
     if tags is not None:
         decision.tags = [DecisionTag(tag=t) for t in tags]

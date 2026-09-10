@@ -90,7 +90,39 @@ export type Experiment = {
   partial_tolerance_percent: string;
   notes: string | null;
   feature_flag_key: string | null;
+  sample_size: number | null;
+  baseline_rate: string | null;
+  z_test: {
+    z: number;
+    p_value: number;
+    significant: boolean;
+    approximation_poor: boolean;
+  } | null;
   is_frozen: boolean;
+};
+
+export type ActivityEntry = {
+  id: string;
+  action: string;
+  entity_type: string;
+  entity_id: string;
+  summary: string;
+  actor_id: string;
+  actor_email: string;
+  actor_full_name: string | null;
+  created_at: string;
+};
+
+export type ContributionRow = {
+  user_id: string;
+  email: string;
+  full_name: string | null;
+  role: WorkspaceRole;
+  decisions_created: number;
+  experiments_created: number;
+  verdicts: { success: number; partial: number; failed: number };
+  status_changes: number;
+  experiments_completed: number;
 };
 
 export type DashboardOut = {

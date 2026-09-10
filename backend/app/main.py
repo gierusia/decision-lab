@@ -4,6 +4,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.admin.router import router as admin_router
+from app.activity.router import router as activity_router
 from app.auth.router import router as auth_router
 from app.core.config import settings
 from app.core.seed_admins import seed_admins
@@ -37,6 +38,7 @@ app.include_router(workspace_members_router, prefix="/workspaces", tags=["worksp
 app.include_router(decisions_router, prefix="/workspaces", tags=["decisions"])
 app.include_router(experiments_router, prefix="/workspaces", tags=["experiments"])
 app.include_router(dashboard_router, prefix="/workspaces", tags=["dashboard"])
+app.include_router(activity_router, prefix="/workspaces", tags=["activity"])
 
 
 @app.get("/health")

@@ -9,6 +9,7 @@ from app.auth.models import User  # noqa: F401 — регистрирует та
 from app.workspaces.models import Workspace, WorkspaceMember  # noqa: F401 — то же самое
 from app.decisions.models import Decision, DecisionTag  # noqa: F401 — то же самое
 from app.experiments.models import Experiment  # noqa: F401 — то же самое
+from app.activity.models import ActivityLog  # noqa: F401 — то же самое
 
 config = context.config
 

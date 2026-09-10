@@ -3,6 +3,8 @@ import uuid
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
+from app.activity import service as activity_service
+from app.activity.models import ActivityAction, ActivityEntityType
 from app.auth import service as auth_service
 from app.auth.models import User
 from app.workspaces.models import Workspace, WorkspaceMember, WorkspaceRole
@@ -74,7 +76,7 @@ def list_members(db: Session, workspace: Workspace) -> list[WorkspaceMember]:
 
 
 def add_member(
-    db: Session, workspace: Workspace, email: str, role: WorkspaceRole
+    db: Session, workspace: Workspace, email: str, role: WorkspaceRole, actor: User
 ) -> WorkspaceMember:
     user = auth_service.get_user_by_email(db, email)
     if user is None:
@@ -86,14 +88,27 @@ def add_member(
     membership = WorkspaceMember(workspace_id=workspace.id, user_id=user.id, role=role)
     db.add(membership)
     try:
-        db.commit()
+        # flush, не commit: гонка ловится сразу здесь, а сам лог ниже
+        # попадает в ТУ ЖЕ транзакцию, что и создание membership.
+        db.flush()
     except IntegrityError:
         # Та же гонка, что чинили в auth.create_user: два одновременных
         # приглашения одного и того же email могут оба пройти проверку
-        # get_membership выше раньше, чем долетит commit.
+        # get_membership выше раньше, чем долетит flush.
         db.rollback()
         raise ValueError("This user is already a member of the workspace") from None
 
+    activity_service.record_activity(
+        db,
+        workspace_id=workspace.id,
+        actor=actor,
+        action=ActivityAction.MEMBER_ADDED,
+        entity_type=ActivityEntityType.MEMBER,
+        entity_id=user.id,
+        summary=f"{user.email} добавлен(а) в workspace с ролью {role.value}",
+    )
+
+    db.commit()
     db.refresh(membership)
     return membership
 
@@ -109,10 +124,28 @@ def update_member_role(
     return membership
 
 
-def remove_member(db: Session, membership: WorkspaceMember) -> None:
+def remove_member(db: Session, membership: WorkspaceMember, actor: User) -> None:
     if membership.role == WorkspaceRole.OWNER:
         raise ValueError("Cannot remove the workspace owner")
+
+    # Читаем всё нужное для лога, пока объект ещё жив — после db.delete()
+    # обращаться к его атрибутам небезопасно.
+    workspace_id = membership.workspace_id
+    removed_user_id = membership.user_id
+    removed_user_email = membership.user.email
+
     db.delete(membership)
+
+    activity_service.record_activity(
+        db,
+        workspace_id=workspace_id,
+        actor=actor,
+        action=ActivityAction.MEMBER_REMOVED,
+        entity_type=ActivityEntityType.MEMBER,
+        entity_id=removed_user_id,
+        summary=f"{removed_user_email} удалён(а) из workspace",
+    )
+
     db.commit()
 
 
@@ -163,7 +196,21 @@ def assign_membership(
     if membership is None:
         membership = WorkspaceMember(workspace_id=workspace.id, user_id=user.id, role=role)
         db.add(membership)
+        db.flush()
+
+        activity_service.record_activity(
+            db,
+            workspace_id=workspace.id,
+            actor=actor,
+            action=ActivityAction.MEMBER_ADDED,
+            entity_type=ActivityEntityType.MEMBER,
+            entity_id=user.id,
+            summary=f"{user.email} добавлен(а) в workspace с ролью {role.value}",
+        )
     else:
+        # Смена роли уже существующему участнику — отдельный тип события,
+        # который в первый срез ленты активности не входит (см. договорку:
+        # "роль поменяли без remove+add — пока не решили, как логировать").
         if membership.role == WorkspaceRole.OWNER:
             raise ValueError("Cannot change the owner's role")
         membership.role = role

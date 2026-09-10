@@ -76,6 +76,7 @@ def update_decision(
             payload.description,
             payload.status,
             payload.tags,
+            actor=current_user,
             actor_is_owner=membership is not None
             and membership.role == WorkspaceRole.OWNER,
         )

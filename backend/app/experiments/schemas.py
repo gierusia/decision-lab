@@ -15,6 +15,8 @@ class ExperimentCreateRequest(BaseModel):
     actual_value: Decimal | None = None
     notes: str | None = None
     feature_flag_key: str | None = Field(default=None, max_length=200)
+    sample_size: int | None = Field(default=None, ge=1)
+    baseline_rate: Decimal | None = None
 
     @field_validator("partial_tolerance_percent")
     @classmethod
@@ -43,6 +45,8 @@ class ExperimentUpdateRequest(BaseModel):
     partial_tolerance_percent: Decimal | None = None
     notes: str | None = None
     feature_flag_key: str | None = Field(default=None, max_length=200)
+    sample_size: int | None = Field(default=None, ge=1)
+    baseline_rate: Decimal | None = None
     status: ExperimentStatus | None = None
     is_frozen: bool | None = None
 
@@ -64,6 +68,13 @@ class ExperimentUpdateRequest(BaseModel):
         return cleaned or None
 
 
+class ZTestOut(BaseModel):
+    z: float
+    p_value: float
+    significant: bool
+    approximation_poor: bool
+
+
 class ExperimentOut(BaseModel):
     id: uuid.UUID
     decision_id: uuid.UUID
@@ -77,6 +88,9 @@ class ExperimentOut(BaseModel):
     partial_tolerance_percent: Decimal
     notes: str | None
     feature_flag_key: str | None
+    sample_size: int | None
+    baseline_rate: Decimal | None
+    z_test: ZTestOut | None = None
     is_frozen: bool
     created_at: datetime
     updated_at: datetime

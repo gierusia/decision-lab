@@ -14,6 +14,7 @@ from app.experiments.schemas import (
     ExperimentOut,
     ExperimentUpdateRequest,
 )
+from app.experiments.ztest import compute_z_test
 from app.workspaces import service as workspace_service
 from app.workspaces.deps import require_role
 from app.workspaces.models import Workspace, WorkspaceRole
@@ -41,6 +42,13 @@ def _to_out(experiment: Experiment) -> ExperimentOut:
         partial_tolerance_percent=experiment.partial_tolerance_percent,
         notes=experiment.notes,
         feature_flag_key=experiment.feature_flag_key,
+        sample_size=experiment.sample_size,
+        baseline_rate=experiment.baseline_rate,
+        z_test=compute_z_test(
+            experiment.actual_value,
+            experiment.baseline_rate,
+            experiment.sample_size,
+        ),
         is_frozen=experiment.is_frozen,
         created_at=experiment.created_at,
         updated_at=experiment.updated_at,
@@ -71,6 +79,8 @@ def create_experiment(
             payload.actual_value,
             payload.notes,
             payload.feature_flag_key,
+            payload.sample_size,
+            payload.baseline_rate,
         )
     except service.ExperimentError as error:
         raise HTTPException(status_code=400, detail=str(error)) from error
@@ -124,11 +134,15 @@ def update_experiment(
             payload.partial_tolerance_percent,
             payload.notes,
             payload.feature_flag_key,
+            payload.sample_size,
+            payload.baseline_rate,
             payload.status,
             payload.is_frozen,
             notes_provided="notes" in fields_set,
             feature_flag_provided="feature_flag_key" in fields_set,
             actual_provided="actual_value" in fields_set,
+            sample_size_provided="sample_size" in fields_set,
+            baseline_provided="baseline_rate" in fields_set,
         )
     except service.ExperimentError as error:
         raise HTTPException(status_code=400, detail=str(error)) from error

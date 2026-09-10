@@ -22,6 +22,7 @@ export default function WorkspaceShell({
     { href: `/workspaces/${workspaceId}`, label: "Обзор", icon: "home", exact: true },
     { href: `/workspaces/${workspaceId}/decisions`, label: "Решения", icon: "list" },
     { href: `/workspaces/${workspaceId}/dashboard`, label: "Дашборд", icon: "chart" },
+    { href: `/workspaces/${workspaceId}/activity`, label: "Лента", icon: "list" },
     { href: `/workspaces/${workspaceId}/members`, label: "Участники", icon: "users" },
   ];
 

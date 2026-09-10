@@ -3,7 +3,9 @@ import uuid
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
+from app.auth.models import User
 from app.core.database import get_db
+from app.core.deps import get_current_user
 from app.workspaces import service
 from app.workspaces.deps import get_workspace_or_404, require_membership, require_owner
 from app.workspaces.models import Workspace, WorkspaceMember
@@ -39,10 +41,11 @@ def get_member_or_404(
 def add_member(
     payload: MemberAddRequest,
     workspace: Workspace = Depends(require_owner),
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
     try:
-        membership = service.add_member(db, workspace, payload.email, payload.role)
+        membership = service.add_member(db, workspace, payload.email, payload.role, current_user)
     except ValueError as error:
         raise HTTPException(status_code=400, detail=str(error)) from error
     return _to_member_out(membership)
@@ -74,9 +77,10 @@ def update_member_role(
 def remove_member(
     membership: WorkspaceMember = Depends(get_member_or_404),
     workspace: Workspace = Depends(require_owner),
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
     try:
-        service.remove_member(db, membership)
+        service.remove_member(db, membership, current_user)
     except ValueError as error:
         raise HTTPException(status_code=400, detail=str(error)) from error

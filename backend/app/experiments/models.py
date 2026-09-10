@@ -3,7 +3,7 @@ import uuid
 from datetime import datetime, timezone
 from decimal import Decimal
 
-from sqlalchemy import Boolean, DateTime, ForeignKey, Numeric, String, Text
+from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, Numeric, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.database import Base
@@ -50,6 +50,8 @@ class Experiment(Base):
     target_value: Mapped[Decimal] = mapped_column(Numeric(18, 6), nullable=False)
     actual_value: Mapped[Decimal | None] = mapped_column(Numeric(18, 6), nullable=True)
     partial_tolerance_percent: Mapped[Decimal] = mapped_column(Numeric(6, 3), nullable=False)
+    sample_size: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    baseline_rate: Mapped[Decimal | None] = mapped_column(Numeric(18, 6), nullable=True)
 
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
     feature_flag_key: Mapped[str | None] = mapped_column(String, nullable=True)
