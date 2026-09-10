@@ -9,6 +9,8 @@ class Settings(BaseSettings):
     JWT_ALGORITHM: str = "HS256"
     CORS_ORIGINS: str = "http://localhost:3000"
     COOKIE_SECURE: bool = False
+    SEED_EMAIL_DOMAIN: str = "example.com"
+    SEED_PASSWORD: str = "demo-pass-12"
 
     @property
     def cors_origin_list(self) -> list[str]:
